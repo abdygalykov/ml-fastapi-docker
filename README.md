@@ -1,3 +1,5 @@
+# Practical Task: Deploy ML Model with FastAPI and Docker
+
 This project demonstrates the end-to-end workflow of training a Machine Learning classification model, exposing it via a RESTful API using **FastAPI**, and packaging it into a reproducible **Docker** container.
 
 ---
@@ -31,7 +33,7 @@ ml-fastapi-docker/
 
 ## 🚀 Step-by-Step Instructions
 
-Step 1: Train the Machine Learning Model
+### Step 1: Train the Machine Learning Model
 
 Activate your environment and run the training script:
 
@@ -50,7 +52,7 @@ Test Accuracy: 90.00%
 
 ---
 
-Step 2 & 3: Run and Test FastAPI Locally
+### Step 2 & 3: Run and Test FastAPI Locally
 
 1. **Install dependencies:**
    ```bash
@@ -103,7 +105,7 @@ Step 2 & 3: Run and Test FastAPI Locally
 
 ---
 
-Step 4 & 5: Build the Docker Image
+### Step 4 & 5: Build the Docker Image
 
 1. **Build the container image:**
    ```bash
@@ -117,7 +119,7 @@ Step 4 & 5: Build the Docker Image
 
 ---
 
-Step 6: Run the Docker Container
+### Step 6: Run the Docker Container
 
 1. **Run the container in detached mode with port 8000 exposed:**
    ```bash
@@ -160,3 +162,4 @@ Step 6: Run the Docker Container
    ```
 
 ---
+
