@@ -2,36 +2,63 @@ import os
 import joblib
 import numpy as np
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 # Initialize FastAPI application
 app = FastAPI(
     title="Iris Classification API",
-    description="A simple ML model serving API built with FastAPI and Dockerized for production deployment.",
-    version="1.0.0"
+    description="A production-ready ML model serving API built with FastAPI, integrated with MLflow, and containerized with Docker.",
+    version="2.0.0"
+)
+
+# Enable CORS for frontend clients (e.g., Streamlit on port 8501)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Target class labels for the Iris dataset
 CLASS_NAMES = ["setosa", "versicolor", "virginica"]
 
-# Resolve path to the saved model artifact
+# Model loading logic: MLflow registry support with local fallback
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(BASE_DIR, "model.joblib"))
+MLFLOW_MODEL_URI = os.getenv("MLFLOW_MODEL_URI", None)
 
-# Load the trained model artifact
-try:
-    model = joblib.load(MODEL_PATH)
-    print(f"Successfully loaded model artifact from: {MODEL_PATH}")
-except Exception as e:
-    model = None
-    print(f"Error loading model artifact: {e}")
+model = None
+model_source = "None"
 
-# Define the Pydantic schema for the input features
+# Attempt 1: Load from MLflow if URI is explicitly specified
+if MLFLOW_MODEL_URI:
+    try:
+        import mlflow.sklearn
+        model = mlflow.sklearn.load_model(MLFLOW_MODEL_URI)
+        model_source = f"MLflow URI ({MLFLOW_MODEL_URI})"
+        print(f"Successfully loaded model from MLflow: {MLFLOW_MODEL_URI}")
+    except Exception as mlflow_err:
+        print(f"Notice: Could not load from MLflow URI ({mlflow_err}), falling back to local file.")
+
+# Attempt 2: Fallback to local joblib artifact
+if model is None:
+    try:
+        model = joblib.load(MODEL_PATH)
+        model_source = f"Local File ({os.path.basename(MODEL_PATH)})"
+        print(f"Successfully loaded model artifact from: {MODEL_PATH}")
+    except Exception as file_err:
+        print(f"Error loading local model artifact: {file_err}")
+        model_source = "Unavailable"
+
+
+# Pydantic schema for input feature validation
 class IrisFeatures(BaseModel):
-    sepal_length: float = Field(..., description="Sepal length in cm", examples=[5.1])
-    sepal_width: float = Field(..., description="Sepal width in cm", examples=[3.5])
-    petal_length: float = Field(..., description="Petal length in cm", examples=[1.4])
-    petal_width: float = Field(..., description="Petal width in cm", examples=[0.2])
+    sepal_length: float = Field(..., description="Sepal length in cm", ge=0.0, le=15.0, examples=[5.1])
+    sepal_width: float = Field(..., description="Sepal width in cm", ge=0.0, le=15.0, examples=[3.5])
+    petal_length: float = Field(..., description="Petal length in cm", ge=0.0, le=15.0, examples=[1.4])
+    petal_width: float = Field(..., description="Petal width in cm", ge=0.0, le=15.0, examples=[0.2])
 
     class Config:
         json_schema_extra = {
@@ -43,18 +70,37 @@ class IrisFeatures(BaseModel):
             }
         }
 
+
 # Endpoint 1: Root endpoint confirming the API is running
 @app.get("/")
 def read_root():
-    return {"message": "ML API is running"}
+    return {
+        "message": "ML API is running",
+        "status": "healthy",
+        "version": "2.0.0"
+    }
 
-# Endpoint 2: Prediction endpoint
+
+# Endpoint 2: Model information and metadata endpoint
+@app.get("/model-info")
+def model_info():
+    return {
+        "model_name": "IrisClassifier",
+        "algorithm": "RandomForestClassifier",
+        "classes": CLASS_NAMES,
+        "features": ["sepal_length", "sepal_width", "petal_length", "petal_width"],
+        "model_source": model_source,
+        "is_loaded": model is not None
+    }
+
+
+# Endpoint 3: Prediction endpoint
 @app.post("/predict")
 def predict(features: IrisFeatures):
     if model is None:
         raise HTTPException(
             status_code=503,
-            detail="Model is not loaded. Please ensure model.joblib exists."
+            detail="Model is not loaded. Please ensure model.joblib exists or train.py has been executed."
         )
 
     # Convert incoming feature values into numpy array with shape (1, 4)
